@@ -154,14 +154,14 @@ func (this *BinaryDecoder) ReadString() (string, error) {
 	if err := checkEOF(this.buf, this.pos, 1); err != nil {
 		return "", err
 	}
-	length, err := this.ReadInt()
+	length, err := this.ReadLong()
 	if err != nil || length < 0 {
 		return "", InvalidStringLength
 	}
 	if err := checkEOF(this.buf, this.pos, int(length)); err != nil {
 		return "", err
 	}
-	value := string(this.buf[this.pos : int32(this.pos)+length])
+	value := string(this.buf[this.pos : this.pos+length])
 	this.pos += int64(length)
 	return value, nil
 }
