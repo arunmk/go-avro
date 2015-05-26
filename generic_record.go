@@ -15,6 +15,7 @@ limitations under the License. */
 
 package avro
 
+
 type AvroRecord interface {
 	Schema() Schema
 }
@@ -40,8 +41,9 @@ func (this *GenericRecord) Get(name string) interface{} {
 }
 
 // Sets a value for a given name.
-func (this *GenericRecord) Set(name string, value interface{}) {
+func (this *GenericRecord) Set(name string, value interface{}) bool{
 	this.fields[name] = value
+	return true
 }
 
 // Returns a schema for this GenericRecord.
