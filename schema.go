@@ -633,6 +633,7 @@ func (this *EnumSchema) MarshalJSON() ([]byte, error) {
 // ArraySchema implements Schema and represents Avro array type.
 type ArraySchema struct {
 	Items      Schema
+	Default    interface{}
 	Properties map[string]string
 }
 
@@ -679,9 +680,11 @@ func (this *ArraySchema) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type  string `json:"type,omitempty"`
 		Items Schema `json:"items,omitempty"`
+		Default interface{} `json:"default,omitempty"`
 	}{
 		Type:  "array",
 		Items: this.Items,
+		Default: this.Default,
 	})
 }
 
@@ -947,7 +950,7 @@ func schemaByType(i interface{}, registry map[string]Schema, namespace string) (
 			if err != nil {
 				return nil, err
 			}
-			return &ArraySchema{Items: items, Properties: getProperties(v)}, nil
+			return &ArraySchema{Items: items, Default:v[schema_defaultField], Properties: getProperties(v)}, nil
 		case type_map:
 			values, err := schemaByType(v[schema_valuesField], registry, namespace)
 			if err != nil {
@@ -1033,26 +1036,7 @@ func parseSchemaField(i interface{}, registry map[string]Schema, namespace strin
 		}
 		schemaField.Type = fieldType
 		if def, exists := v[schema_defaultField]; exists {
-			switch def.(type) {
-			case float64:
-				// JSON treats all numbers as float64 by default
-				switch schemaField.Type.Type() {
-				case Int:
-					var converted int32 = int32(def.(float64))
-					schemaField.Default = converted
-				case Long:
-					var converted int64 = int64(def.(float64))
-					schemaField.Default = converted
-				case Float:
-					var converted float32 = float32(def.(float64))
-					schemaField.Default = converted
-
-				default:
-					schemaField.Default = def
-				}
-			default:
-				schemaField.Default = def
-			}
+			schemaField.Default = def
 		}
 
 		return schemaField, nil
@@ -1105,7 +1089,8 @@ func getProperties(v map[string]interface{}) map[string]string {
 func isReserved(name string) bool {
 	switch name {
 	case schema_aliasesField, schema_docField, schema_fieldsField, schema_itemsField, schema_nameField,
-		schema_namespaceField, schema_sizeField, schema_symbolsField, schema_typeField, schema_valuesField:
+		schema_namespaceField, schema_sizeField, schema_symbolsField, schema_typeField,
+		schema_defaultField, schema_valuesField:
 		return true
 	}
 

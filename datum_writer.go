@@ -324,6 +324,11 @@ func (this *GenericDatumWriter) writeInt(v interface{}, enc Encoder) error {
 	switch value := v.(type) {
 	case int32:
 		enc.WriteInt(value)
+
+	case float64:
+		var converted int32 = int32(value)
+		enc.WriteInt(converted)
+
 	default:
 		return fmt.Errorf("%v is not an int32", v)
 	}
@@ -335,6 +340,11 @@ func (this *GenericDatumWriter) writeLong(v interface{}, enc Encoder) error {
 	switch value := v.(type) {
 	case int64:
 		enc.WriteLong(value)
+
+	case float64:
+		var converted int64 = int64(value)
+		enc.WriteLong(converted)
+
 	default:
 		return fmt.Errorf("%v is not an int64", v)
 	}
@@ -346,6 +356,11 @@ func (this *GenericDatumWriter) writeFloat(v interface{}, enc Encoder) error {
 	switch value := v.(type) {
 	case float32:
 		enc.WriteFloat(value)
+
+	case float64:
+		var converted float32 = float32(value)
+		enc.WriteFloat(converted)
+
 	default:
 		return fmt.Errorf("%v is not a float32", v)
 	}
@@ -386,7 +401,15 @@ func (this *GenericDatumWriter) writeString(v interface{}, enc Encoder) error {
 	return nil
 }
 
-func (this *GenericDatumWriter) writeArray(v interface{}, enc Encoder, s Schema) error {
+func (this *GenericDatumWriter) writeArray(v interface{}, enc Encoder, s Schema) (err error) {
+	if v == nil {
+		as, ok := s.(*ArraySchema)
+		if !ok {
+			return fmt.Errorf("Nil value passed and no default value present.")
+		}
+		v = as.Default
+	}
+
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
 		return errors.New("Not a slice or array type")
@@ -395,7 +418,10 @@ func (this *GenericDatumWriter) writeArray(v interface{}, enc Encoder, s Schema)
 	//TODO should probably write blocks of some length
 	enc.WriteArrayStart(int64(rv.Len()))
 	for i := 0; i < rv.Len(); i++ {
-		this.write(rv.Index(i).Interface(), enc, s.(*ArraySchema).Items)
+		err = this.write(rv.Index(i).Interface(), enc, s.(*ArraySchema).Items)
+		if err != nil {
+			return err
+		}
 	}
 	enc.WriteArrayNext(0)
 
@@ -515,8 +541,28 @@ func (this *GenericDatumWriter) writeRecord(v interface{}, enc Encoder, s Schema
 				this.write(field, enc, schemaField.Type)
 			}
 		}
+	case map[string]interface{}:
+		{
+			rs, ok := s.(*RecordSchema)
+			if !ok {
+				return fmt.Errorf("Expected type *RecordSchema, obtained type", reflect.TypeOf(s))
+			}
+			for i := range rs.Fields {
+				schemaField := rs.Fields[i]
+				field, ok := value[schemaField.Name]
+				if !ok {
+					field = schemaField.Default
+					if !ok {
+						return fmt.Errorf("Field and default value not populated.")
+					}
+				}
+				this.write(field, enc, schemaField.Type)
+			}
+		}
 	default:
-		return fmt.Errorf("%v is not a *GenericRecord", v)
+		{
+			return fmt.Errorf("Expected type *GenericRecord, obtained type", reflect.TypeOf(v))
+		}
 	}
 
 	return nil
