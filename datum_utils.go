@@ -16,6 +16,7 @@ limitations under the License. */
 package avro
 
 import (
+	"runtime"
 	"fmt"
 	"reflect"
 	"strings"
@@ -52,4 +53,18 @@ func findField(where reflect.Value, name string) (reflect.Value, error) {
 	}
 
 	return field, nil
+}
+
+func GetFunctionName() string {
+	funcptr, _, _, ok := runtime.Caller(1)
+	if !ok {
+		return "unknown_func"
+	}
+
+	thisFunc := runtime.FuncForPC(funcptr)
+	if thisFunc == nil {
+		return "unknown_func_ptr"
+	}
+
+	return thisFunc.Name()
 }

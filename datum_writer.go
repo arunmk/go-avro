@@ -314,7 +314,7 @@ func (this *GenericDatumWriter) writeBoolean(v interface{}, enc Encoder) error {
 	case bool:
 		enc.WriteBoolean(value)
 	default:
-		return fmt.Errorf("%v is not a boolean", v)
+		return fmt.Errorf("%v: expected boolean obtained %T", v, v)
 	}
 
 	return nil
@@ -330,7 +330,7 @@ func (this *GenericDatumWriter) writeInt(v interface{}, enc Encoder) error {
 		enc.WriteInt(converted)
 
 	default:
-		return fmt.Errorf("%v is not an int32", v)
+		return fmt.Errorf("%v: expected int32 obtained %T", v, v)
 	}
 
 	return nil
@@ -346,7 +346,7 @@ func (this *GenericDatumWriter) writeLong(v interface{}, enc Encoder) error {
 		enc.WriteLong(converted)
 
 	default:
-		return fmt.Errorf("%v is not an int64", v)
+		return fmt.Errorf("%v: expected int64 obtained %T", v, v)
 	}
 
 	return nil
@@ -418,9 +418,8 @@ func (this *GenericDatumWriter) writeArray(v interface{}, enc Encoder, s Schema)
 	//TODO should probably write blocks of some length
 	enc.WriteArrayStart(int64(rv.Len()))
 	for i := 0; i < rv.Len(); i++ {
-		err = this.write(rv.Index(i).Interface(), enc, s.(*ArraySchema).Items)
-		if err != nil {
-			return err
+		if err = this.write(rv.Index(i).Interface(), enc, s.(*ArraySchema).Items); err != nil {
+			return fmt.Errorf("%s : %v", GetFunctionName(), err)
 		}
 	}
 	enc.WriteArrayNext(0)
@@ -428,7 +427,7 @@ func (this *GenericDatumWriter) writeArray(v interface{}, enc Encoder, s Schema)
 	return nil
 }
 
-func (this *GenericDatumWriter) writeMap(v interface{}, enc Encoder, s Schema) error {
+func (this *GenericDatumWriter) writeMap(v interface{}, enc Encoder, s Schema) (err error) {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Map {
 		return errors.New("Not a map type")
@@ -437,8 +436,12 @@ func (this *GenericDatumWriter) writeMap(v interface{}, enc Encoder, s Schema) e
 	//TODO should probably write blocks of some length
 	enc.WriteMapStart(int64(rv.Len()))
 	for _, key := range rv.MapKeys() {
-		this.writeString(key.Interface(), enc)
-		this.write(rv.MapIndex(key).Interface(), enc, s.(*MapSchema).Values)
+		if err = this.writeString(key.Interface(), enc); err != nil {
+			return fmt.Errorf("%s : %v", GetFunctionName(), err)
+		}
+		if err = this.write(rv.MapIndex(key).Interface(), enc, s.(*MapSchema).Values); err != nil {
+			return fmt.Errorf("%s : %v", GetFunctionName(), err)
+		}
 	}
 	enc.WriteMapNext(0)
 
@@ -527,7 +530,7 @@ func (this *GenericDatumWriter) writeFixed(v interface{}, enc Encoder, s Schema)
 	return this.writeBytes(v, enc)
 }
 
-func (this *GenericDatumWriter) writeRecord(v interface{}, enc Encoder, s Schema) error {
+func (this *GenericDatumWriter) writeRecord(v interface{}, enc Encoder, s Schema) (err error) {
 	switch value := v.(type) {
 	case *GenericRecord:
 		{
@@ -538,14 +541,16 @@ func (this *GenericDatumWriter) writeRecord(v interface{}, enc Encoder, s Schema
 				if field == nil {
 					field = schemaField.Default
 				}
-				this.write(field, enc, schemaField.Type)
+				if err = this.write(field, enc, schemaField.Type); err != nil {
+					return fmt.Errorf("%s : %v", GetFunctionName(), err)
+				}
 			}
 		}
 	case map[string]interface{}:
 		{
 			rs, ok := s.(*RecordSchema)
 			if !ok {
-				return fmt.Errorf("Expected type *RecordSchema, obtained type", reflect.TypeOf(s))
+				return fmt.Errorf("Expected type *RecordSchema, obtained type: %T", s)
 			}
 			for i := range rs.Fields {
 				schemaField := rs.Fields[i]
@@ -556,12 +561,14 @@ func (this *GenericDatumWriter) writeRecord(v interface{}, enc Encoder, s Schema
 						return fmt.Errorf("Field and default value not populated.")
 					}
 				}
-				this.write(field, enc, schemaField.Type)
+				if err = this.write(field, enc, schemaField.Type); err != nil {
+					return fmt.Errorf("%s : %v", GetFunctionName(), err)
+				}
 			}
 		}
 	default:
 		{
-			return fmt.Errorf("Expected type *GenericRecord, obtained type", reflect.TypeOf(v))
+			return fmt.Errorf("Expected type *GenericRecord, obtained type: %s", v)
 		}
 	}
 

@@ -484,7 +484,16 @@ func (this *GenericDatumReader) mapUnion(field Schema, dec Decoder) (interface{}
 	if unionType, err := dec.ReadInt(); err != nil {
 		return nil, err
 	} else {
-		union := field.(*UnionSchema).Types[unionType]
+		unionSchema, ok := field.(*UnionSchema)
+		if !ok {
+			return nil, fmt.Errorf("Unable to convert type [%T] to union", field)
+		}
+
+		if len(unionSchema.Types) >= int(unionType) || len(unionSchema.Types) < 0 {
+			return nil, fmt.Errorf("Invalid union offset. expected [0..%d], obtained %d", len(unionSchema.Types), unionType)
+		}
+
+		union := unionSchema.Types[unionType]
 		return this.readValue(union, dec)
 	}
 }
